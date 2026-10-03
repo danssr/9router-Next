@@ -7,8 +7,8 @@
     "src/app/api/cron/**": { "maxDuration": 60 }
   },
   "crons": [
-    { "path": "/api/cron/token-refresh", "schedule": "*/30 * * * *" },
+    { "path": "/api/cron/token-refresh", "schedule": "0 3 * * *" },
     { "path": "/api/cron/model-catalog", "schedule": "0 4 * * *" },
-    { "path": "/api/cron/quota-ping", "schedule": "0 * * * *" }
+    { "path": "/api/cron/quota-ping", "schedule": "0 5 * * *" }
   ]
 }

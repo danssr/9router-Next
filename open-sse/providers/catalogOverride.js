@@ -8,6 +8,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { DATA_DIR } from "@/lib/dataDir.js";
+// Build-time snapshot (scripts/gen-catalog.mjs). Fallback for serverless, where
+// DATA_DIR is ephemeral and the synced file may be absent on a fresh instance.
+import bundledCatalog from "./catalog.bundled.js";
 
 export const CATALOG_FILE = path.join(DATA_DIR, "model-catalog.json");
 // Trimmed upstream catalog, read by the add-models skill (not by the router).
@@ -19,6 +22,7 @@ export const CATALOG_RAW_FILE = path.join(DATA_DIR, "model-catalog-raw.json");
 export const CATALOG_VERSION = 2;
 
 const EMPTY = { models: {}, providers: {} };
+const BUNDLED = { models: bundledCatalog?.models || {}, providers: bundledCatalog?.providers || {} };
 let cache = EMPTY;
 let cachedMtime = -1;
 
@@ -34,7 +38,10 @@ function load() {
   try {
     mtime = fs.statSync(CATALOG_FILE).mtimeMs;
   } catch {
-    cache = EMPTY;
+    // No synced file (fresh serverless instance: DATA_DIR is ephemeral). Use the
+    // build-time snapshot so capabilities/limits are never empty. A later runtime
+    // sync writes CATALOG_FILE and takes over on the next lookup.
+    cache = BUNDLED;
     cachedMtime = -1;
     return cache;
   }
