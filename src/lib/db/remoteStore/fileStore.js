@@ -6,14 +6,16 @@ import path from "node:path";
 import { DATA_DIR } from "@/lib/dataDir.js";
 
 export function createFileStore() {
-  const file = process.env.NINEROUTER_REMOTE_FILE || path.join(DATA_DIR, "db", "remote-blob.sqlite");
+  const resolveFile = (key) => process.env.NINEROUTER_REMOTE_FILE || path.join(DATA_DIR, "db", key || "remote-blob.sqlite");
   return {
     name: "file",
-    async load() {
+    async load(key) {
+      const file = resolveFile(key);
       if (!fs.existsSync(file)) return null;
       return new Uint8Array(fs.readFileSync(file));
     },
-    async save(_key, bytes) {
+    async save(key, bytes) {
+      const file = resolveFile(key);
       fs.mkdirSync(path.dirname(file), { recursive: true });
       const tmp = `${file}.tmp-${process.pid}`;
       fs.writeFileSync(tmp, Buffer.from(bytes));

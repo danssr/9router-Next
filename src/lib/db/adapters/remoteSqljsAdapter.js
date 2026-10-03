@@ -25,7 +25,7 @@ async function loadSql() {
 // NINEROUTER_REMOTE_SAVE_MS. close() always flushes.
 const SAVE_DEBOUNCE_MS = Number(process.env.NINEROUTER_REMOTE_SAVE_MS || 250);
 
-export async function createRemoteSqljsAdapter(key = "data.sqlite") {
+export async function createRemoteSqljsAdapter(key) {
   const SQLLib = await loadSql();
   const store = await createRemoteStore();
 
