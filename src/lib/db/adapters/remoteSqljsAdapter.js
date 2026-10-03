@@ -14,34 +14,21 @@
 // instance whose save was later overwritten are not recovered — true multi-writer
 // correctness needs a row-level store (see docs/VERCEL-PORT.md).
 
-import fs from "node:fs";
-import path from "node:path";
-import { createRequire } from "node:module";
 import initSqlJs from "sql.js";
 import { PRAGMA_SQL } from "../schema.js";
 import { createRemoteStore } from "../remoteStore/index.js";
+// Inlined sql-wasm.wasm (base64). Passing wasmBinary avoids any fs/wasm-file
+// lookup, which Next's file tracing misses for the externalized sql.js package
+// on serverless. Regenerate with `npm run gen:sqlwasm`.
+import sqlWasmB64 from "../sql-wasm.b64.js";
 
 let SQL = null;
-
-// Locate sql-wasm.wasm explicitly. On serverless the traced bundle may place it
-// next to the package; the default (script-dir) lookup can miss, and initSqlJs
-// then throws ENOENT. Try the resolvable package dir, then cwd/node_modules.
-function findWasm() {
-  const candidates = [];
-  try {
-    candidates.push(path.join(path.dirname(createRequire(import.meta.url).resolve("sql.js")), "sql-wasm.wasm"));
-  } catch { /* ignore */ }
-  candidates.push(path.join(process.cwd(), "node_modules/sql.js/dist/sql-wasm.wasm"));
-  for (const c of candidates) {
-    try { if (fs.existsSync(c)) return c; } catch { /* ignore */ }
-  }
-  return null;
-}
+let wasmBinary = null;
 
 async function loadSql() {
   if (SQL) return SQL;
-  const wasm = findWasm();
-  SQL = await initSqlJs(wasm ? { locateFile: () => wasm } : undefined);
+  if (!wasmBinary) wasmBinary = Buffer.from(sqlWasmB64, "base64");
+  SQL = await initSqlJs({ wasmBinary });
   return SQL;
 }
 

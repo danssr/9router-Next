@@ -15,7 +15,8 @@
     "start:bun": "bun ./.next/standalone/custom-server.js",
     "cli:pack": "npm --prefix cli run pack:cli",
     "cli:publish": "npm --prefix cli run publish:cli",
-    "gen:catalog": "node --import ./scripts/register.mjs scripts/gen-catalog.mjs"
+    "gen:catalog": "node --import ./scripts/register.mjs scripts/gen-catalog.mjs",
+    "gen:sqlwasm": "node scripts/gen-sqlwasm.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
