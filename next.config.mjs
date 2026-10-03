@@ -28,6 +28,14 @@ const nextConfig = {
   outputFileTracingExcludes: {
     "*": ["./gitbook/**/*"]
   },
+  // sql.js is a serverExternalPackage (kept external, loaded from node_modules at
+  // runtime). Its wasm is read dynamically (fs), so Next's file tracing misses it
+  // and the serverless function ships without sql-wasm.wasm -> initSqlJs throws
+  // ENOENT -> "No SQLite driver available". Force the wasm into the bundle.
+  outputFileTracingIncludes: {
+    "/**": ["./node_modules/sql.js/dist/sql-wasm.wasm"],
+    "/api/**": ["./node_modules/sql.js/dist/sql-wasm.wasm"]
+  },
   images: {
     unoptimized: true
   },

@@ -14,15 +14,34 @@
 // instance whose save was later overwritten are not recovered — true multi-writer
 // correctness needs a row-level store (see docs/VERCEL-PORT.md).
 
+import fs from "node:fs";
+import path from "node:path";
+import { createRequire } from "node:module";
 import initSqlJs from "sql.js";
 import { PRAGMA_SQL } from "../schema.js";
 import { createRemoteStore } from "../remoteStore/index.js";
 
 let SQL = null;
 
+// Locate sql-wasm.wasm explicitly. On serverless the traced bundle may place it
+// next to the package; the default (script-dir) lookup can miss, and initSqlJs
+// then throws ENOENT. Try the resolvable package dir, then cwd/node_modules.
+function findWasm() {
+  const candidates = [];
+  try {
+    candidates.push(path.join(path.dirname(createRequire(import.meta.url).resolve("sql.js")), "sql-wasm.wasm"));
+  } catch { /* ignore */ }
+  candidates.push(path.join(process.cwd(), "node_modules/sql.js/dist/sql-wasm.wasm"));
+  for (const c of candidates) {
+    try { if (fs.existsSync(c)) return c; } catch { /* ignore */ }
+  }
+  return null;
+}
+
 async function loadSql() {
   if (SQL) return SQL;
-  SQL = await initSqlJs();
+  const wasm = findWasm();
+  SQL = await initSqlJs(wasm ? { locateFile: () => wasm } : undefined);
   return SQL;
 }
 
