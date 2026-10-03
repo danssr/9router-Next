@@ -6,13 +6,13 @@
 // the bytes' home moves. Adapter contract matches the local adapters:
 //   { driver, run, get, all, exec, transaction, close, raw }
 //
-// Concurrency: by default each instance holds the DB in memory and writes the
-// whole blob back (last-write-wins). Set NINEROUTER_REMOTE_CONCURRENCY=merge to
-// serialize flushes with a store lock and replay the mutations made since the
-// last flush onto the latest remote blob, so a concurrent instance's writes are
-// merged instead of clobbered. Residual: mutations already flushed by an
-// instance whose save was later overwritten are not recovered — true multi-writer
-// correctness needs a row-level store (see docs/VERCEL-PORT.md).
+// Concurrency + staleness (serverless holds the DB in memory per instance):
+// - Writes are debounced and flushed; set NINEROUTER_REMOTE_CONCURRENCY=merge to
+//   serialize flushes with a store lock and replay unflushed mutations so
+//   concurrent instances merge instead of clobbering.
+// - Reads re-load the remote blob when it is older than
+//   NINEROUTER_REMOTE_RELOAD_MS (default 1500), so an instance that loaded before
+//   another instance wrote does not serve stale data. getAdapter() drives this.
 
 import initSqlJs from "sql.js";
 import { PRAGMA_SQL } from "../schema.js";
@@ -35,6 +35,7 @@ async function loadSql() {
 // Writes are debounced so a burst of statements costs one round-trip. Tune via
 // NINEROUTER_REMOTE_SAVE_MS. close() always flushes.
 const SAVE_DEBOUNCE_MS = Number(process.env.NINEROUTER_REMOTE_SAVE_MS || 250);
+const RELOAD_TTL_MS = Number(process.env.NINEROUTER_REMOTE_RELOAD_MS || 1500);
 const MERGE = (process.env.NINEROUTER_REMOTE_CONCURRENCY || "off").toLowerCase() === "merge";
 const LOCK_TTL_MS = Number(process.env.NINEROUTER_REMOTE_LOCK_TTL_MS || 10000);
 const LOCK_RETRIES = Number(process.env.NINEROUTER_REMOTE_LOCK_RETRIES || 25);
@@ -48,6 +49,7 @@ export async function createRemoteSqljsAdapter(key) {
   const buf = await store.load(key);
   let db = new SQLLib.Database(buf || undefined);
   db.exec(PRAGMA_SQL);
+  let lastLoadAt = Date.now();
 
   let dirty = false;
   let saveTimer = null;
@@ -55,6 +57,8 @@ export async function createRemoteSqljsAdapter(key) {
   let saving = Promise.resolve();
   // Mutating statements since the last successful flush (merge mode only).
   const pending = [];
+  // In-flight reload, so concurrent getAdapter() calls share one.
+  let reloading = null;
 
   function record(stmt) {
     if (MERGE) pending.push(stmt);
@@ -130,6 +134,43 @@ export async function createRemoteSqljsAdapter(key) {
     }, SAVE_DEBOUNCE_MS);
   }
 
+  // Re-load the remote blob when older than the TTL, so a long-lived instance
+  // converges on writes made by other instances. Never clobbers unflushed local
+  // writes: in non-merge mode it defers while dirty; in merge mode it rebuilds
+  // from the latest remote and replays the pending mutations on top.
+  async function reloadIfStale(ttlMs = RELOAD_TTL_MS) {
+    if (Date.now() - lastLoadAt < ttlMs) return;
+    if (reloading) return reloading;
+    if (!MERGE && dirty) return; // would drop unflushed local writes
+    reloading = (async () => {
+      try {
+        await saving;
+        const latest = await store.load(key);
+        if (latest && latest.length) {
+          try { db.close(); } catch { /* ignore */ }
+          db = new SQLLib.Database(latest);
+          db.exec(PRAGMA_SQL);
+          for (const stmt of pending) {
+            try {
+              if (stmt.type === "run") {
+                const s = db.prepare(stmt.sql);
+                try { s.bind(stmt.params && stmt.params.length ? stmt.params : undefined); s.step(); } finally { s.free(); }
+              } else {
+                db.exec(stmt.sql);
+              }
+            } catch { /* ignore replay errors */ }
+          }
+        }
+        lastLoadAt = Date.now();
+      } catch (e) {
+        console.error(`[remoteSqljs:${store.name}] reload failed:`, e && e.message ? e.message : e);
+      } finally {
+        reloading = null;
+      }
+    })();
+    return reloading;
+  }
+
   function paramsObj(params) {
     if (!params || (Array.isArray(params) && params.length === 0)) return undefined;
     return params;
@@ -202,7 +243,7 @@ export async function createRemoteSqljsAdapter(key) {
 
   return {
     driver: `remote:${store.name}`,
-    run, get, all, exec, transaction, close,
+    run, get, all, exec, transaction, close, reloadIfStale,
     get raw() { return db; },
     store,
   };

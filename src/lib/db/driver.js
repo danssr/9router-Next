@@ -99,7 +99,12 @@ async function initAdapter() {
 }
 
 export async function getAdapter() {
-  if (state.instance) return state.instance;
+  if (state.instance) {
+    // Remote adapter: converge on other instances' writes before handing out a
+    // (possibly stale) in-memory DB. No-op for local adapters.
+    if (typeof state.instance.reloadIfStale === "function") await state.instance.reloadIfStale();
+    return state.instance;
+  }
   if (!state.initPromise) state.initPromise = initAdapter().then((a) => { state.instance = a; return a; });
   return state.initPromise;
 }
