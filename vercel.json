@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "regions": ["sin1"],
+  "functions": {
+    "src/app/api/v1/**": { "maxDuration": 300 },
+    "src/app/api/cron/**": { "maxDuration": 60 }
+  },
+  "crons": [
+    { "path": "/api/cron/token-refresh", "schedule": "*/30 * * * *" },
+    { "path": "/api/cron/model-catalog", "schedule": "0 4 * * *" },
+    { "path": "/api/cron/quota-ping", "schedule": "0 * * * *" }
+  ]
+}

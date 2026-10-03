@@ -31,6 +31,9 @@ const PUBLIC_API_PATHS = [
   "/api/auth/saml",
   "/api/version",
   "/api/settings/require-login",
+  // Vercel Cron: no JWT session; each route enforces CRON_SECRET itself
+  // (src/app/api/cron/_auth.js).
+  "/api/cron",
 ];
 
 // Public top-level prefixes (LLM API endpoints with their own API key auth).

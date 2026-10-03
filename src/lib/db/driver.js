@@ -56,19 +56,38 @@ async function trySqlJs() {
   }
 }
 
+// Remote blob mode (Vercel/serverless): sql.js engine over a remote store.
+// Selected by NINEROUTER_REMOTE_STORE = file | upstash | supabase.
+async function tryRemote() {
+  if (!process.env.NINEROUTER_REMOTE_STORE) return null;
+  try {
+    const { createRemoteSqljsAdapter } = await import("./adapters/remoteSqljsAdapter.js");
+    return await createRemoteSqljsAdapter();
+  } catch (e) {
+    console.warn(`[DB] remote store (${process.env.NINEROUTER_REMOTE_STORE}) unavailable: ${e.message}`);
+    return null;
+  }
+}
+
 async function initAdapter() {
-  ensureDirs();
+  // Remote (serverless) mode takes precedence: the DB blob lives off local disk,
+  // so local dirs are unnecessary and may be unwritable (e.g. Vercel).
+  const remote = await tryRemote();
+  if (!remote) ensureDirs();
   // Order per runtime:
+  //   Remote: remote blob (sql.js over file/upstash/supabase)
   //   Bun:  bun:sqlite → sql.js
   //   Node: better-sqlite3 → node:sqlite (≥22.5) → sql.js
-  let adapter = await tryBunSqlite();
+  let adapter = remote || (await tryBunSqlite());
   if (!adapter) adapter = await tryBetterSqlite();
   if (!adapter) adapter = await tryNodeSqlite();
   if (!adapter) adapter = await trySqlJs();
   if (!adapter) throw new Error("[DB] No SQLite driver available (bun/better/node/sql.js all failed)");
 
   if (!state.logged) {
-    console.log(`[DB] Driver: ${adapter.driver} | file: ${DATA_FILE}`);
+    console.log(adapter.driver.startsWith("remote:")
+      ? `[DB] Driver: ${adapter.driver}`
+      : `[DB] Driver: ${adapter.driver} | file: ${DATA_FILE}`);
     state.logged = true;
   }
 

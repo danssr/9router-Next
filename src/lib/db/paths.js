@@ -12,6 +12,8 @@ export const LEGACY_FILES = {
   details: path.join(DATA_DIR, "request-details.json"),
 };
 export function ensureDirs() {
+  // Remote blob mode has no local DB dir; skip (DATA_DIR may be unwritable).
+  if (process.env.NINEROUTER_REMOTE_STORE) return;
   for (const dir of [DATA_DIR, DB_DIR, BACKUPS_DIR]) {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   }
