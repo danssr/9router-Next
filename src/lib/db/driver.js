@@ -73,7 +73,9 @@ async function initAdapter() {
   // Remote (serverless) mode takes precedence: the DB blob lives off local disk,
   // so local dirs are unnecessary and may be unwritable (e.g. Vercel).
   const remote = await tryRemote();
-  if (!remote) ensureDirs();
+  // Always ensure DATA_DIR (holds the model catalog and other runtime files),
+  // even in remote mode. Best-effort — must not block the remote DB path.
+  ensureDirs();
   // Order per runtime:
   //   Remote: remote blob (sql.js over file/upstash/supabase)
   //   Bun:  bun:sqlite → sql.js

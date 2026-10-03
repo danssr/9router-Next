@@ -12,9 +12,14 @@ export const LEGACY_FILES = {
   details: path.join(DATA_DIR, "request-details.json"),
 };
 export function ensureDirs() {
-  // Remote blob mode has no local DB dir; skip (DATA_DIR may be unwritable).
-  if (process.env.NINEROUTER_REMOTE_STORE) return;
+  // Best-effort. DATA_DIR also holds the model catalog and other runtime files,
+  // so it is created even in remote mode (where the DB itself is off-disk).
+  // Never fatal: the remote DB path does not depend on the local FS.
   for (const dir of [DATA_DIR, DB_DIR, BACKUPS_DIR]) {
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    try {
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    } catch (e) {
+      console.warn(`[DB] ensureDirs ${dir}: ${e.message}`);
+    }
   }
 }
