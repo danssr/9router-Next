@@ -21,5 +21,8 @@ export function createFileStore() {
       fs.writeFileSync(tmp, Buffer.from(bytes));
       fs.renameSync(tmp, file); // atomic replace
     },
+    // Single-process store: no cross-instance lock needed.
+    async acquireLock() { return true; },
+    async releaseLock() {},
   };
 }

@@ -33,5 +33,8 @@ export function createSupabaseStore() {
       });
       if (!r.ok) throw new Error(`[remoteStore] supabase PUT ${r.status}: ${await r.text().catch(() => "")}`);
     },
+    // No atomic lock primitive here; concurrency merge is best-effort only.
+    async acquireLock() { return true; },
+    async releaseLock() {},
   };
 }
