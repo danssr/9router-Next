@@ -16,7 +16,8 @@
     "cli:pack": "npm --prefix cli run pack:cli",
     "cli:publish": "npm --prefix cli run publish:cli",
     "gen:catalog": "node --import ./scripts/register.mjs scripts/gen-catalog.mjs",
-    "gen:sqlwasm": "node scripts/gen-sqlwasm.mjs"
+    "gen:sqlwasm": "node scripts/gen-sqlwasm.mjs",
+    "sync:db": "node scripts/sync-db-to-vercel.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
