@@ -365,6 +365,19 @@ export async function buildModelsList(kindFilter, options = {}) {
     }
   }
 
+  // noAuth free providers need no stored connection. Chat injects a virtual
+  // one in src/sse/services/auth.js. Mirror that here so the listing
+  // includes oc models from the static registry.
+  for (const [providerId, info] of Object.entries(AI_PROVIDERS)) {
+    if (info && info.noAuth && !activeConnectionByProvider.has(providerId)) {
+      activeConnectionByProvider.set(providerId, {
+        provider: providerId,
+        isActive: true,
+        providerSpecificData: {},
+      });
+    }
+  }
+
   const models = [];
   const combosByName = new Map(
     combos.filter((c) => typeof c?.name === "string").map((c) => [c.name, c]),
